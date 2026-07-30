@@ -18,24 +18,29 @@ const Dashboard = () => {
       if (!currentStore) return;
       
       setLoading(true);
-      const { data: items, error } = await supabase
-        .from('items')
-        .select('*')
-        .eq('store_id', currentStore.id);
+      try {
+        const { data: items, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('store_id', currentStore.id);
 
-      if (error) {
-        console.error("Error fetching items:", error);
-      } else if (items) {
-        const low = items.filter(item => item.quantity <= item.reorder_level);
-        
-        setStats({
-          totalItems: items.length,
-          lowStock: low.length,
-          totalValue: items.reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity)), 0)
-        });
-        setLowStockItems(low);
+        if (error) {
+          console.error("Error fetching items:", error);
+        } else if (items) {
+          const low = items.filter(item => item.quantity <= item.reorder_level);
+          
+          setStats({
+            totalItems: items.length,
+            lowStock: low.length,
+            totalValue: items.reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity)), 0)
+          });
+          setLowStockItems(low);
+        }
+      } catch (err) {
+        console.error("Critical error fetching dashboard data:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchDashboardData();

@@ -15,17 +15,22 @@ const InventoryList = () => {
     const fetchItems = async () => {
       if (!currentStore) return;
       setLoading(true);
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .eq('store_id', currentStore.id);
-      
-      if (error) {
-        console.error("Error fetching items:", error);
-      } else if (data) {
-        setItems(data);
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('store_id', currentStore.id);
+        
+        if (error) {
+          console.error("Error fetching items:", error);
+        } else if (data) {
+          setItems(data);
+        }
+      } catch (err) {
+        console.error("Critical error fetching inventory:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchItems();
