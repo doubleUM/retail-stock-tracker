@@ -1,27 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { getItems } from '../store';
-import { AlertTriangle, PackageSearch, DollarSign } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import { AlertTriangle, PackageSearch, DollarSign, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
+  const { currentStore } = useAuth();
   const [stats, setStats] = useState({
     totalItems: 0,
     lowStock: 0,
     totalValue: 0
   });
-  const [lowStockItems, setLowStockItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const items = getItems();
-    const low = items.filter(item => item.quantity <= item.reorderLevel);
-    
-    setStats({
-      totalItems: items.length,
-      lowStock: low.length,
-      totalValue: items.reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity)), 0)
-    });
-    setLowStockItems(low);
-  }, []);
+    const fetchDashboardData = async () => {
+      if (!currentStore) return;
+      
+      setLoading(true);
+      const { data: items, error } = await supabase
+        .from('items')
+        .select('*')
+        .eq('store_id', currentStore.id);
+
+      if (error) {
+        console.error("Error fetching items:", error);
+      } else if (items) {
+        const low = items.filter(item => item.quantity <= item.reorder_level);
+        
+        setStats({
+          totalItems: items.length,
+          lowStock: low.length,
+          totalValue: items.reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity)), 0)
+        });
+        setLowStockItems(low);
+      }
+      setLoading(false);
+    };
+
+    fetchDashboardData();
+  }, [currentStore]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center" style={{ minHeight: '50vh' }}>
+        <Loader2 className="animate-spin text-gradient" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-col gap-6">
@@ -92,7 +118,7 @@ const Dashboard = () => {
                       <AlertTriangle size={14} /> {item.quantity}
                     </span>
                   </td>
-                  <td>{item.reorderLevel}</td>
+                  <td>{item.reorder_level}</td>
                   <td>
                     <Link to={`/edit/${item.id}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
                       Restock

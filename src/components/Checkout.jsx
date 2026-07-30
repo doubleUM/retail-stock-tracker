@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getItemBySku, updateQuantity, saveTransaction } from '../store';
-import { ShoppingCart, Trash2, CreditCard, Scan, Plus, Minus, Printer } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import { ShoppingCart, Trash2, CreditCard, Scan, Plus, Minus, Printer, Loader2 } from 'lucide-react';
 
 const Checkout = () => {
+  const { currentStore } = useAuth();
   const [cart, setCart] = useState([]);
   const [manualSku, setManualSku] = useState('');
   const [scanFeedback, setScanFeedback] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   
   // Use ref for barcode buffer so we don't need to re-bind event listener on every character
   const barcodeBuffer = useRef('');
@@ -43,32 +46,42 @@ const Checkout = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []); // Empty dependency array because we use functional state updates inside handleScan
 
-  const handleScan = (sku) => {
-    const item = getItemBySku(sku);
-    if (item) {
-      if (item.quantity <= 0) {
-        showFeedback(`Item "${item.name}" is out of stock!`, 'error');
-        return;
-      }
-      
-      setCart(prevCart => {
-        const existing = prevCart.find(i => i.id === item.id);
-        if (existing) {
-          // Check if we have enough stock
-          if (existing.cartQuantity >= item.quantity) {
-             showFeedback(`Cannot add more "${item.name}", stock limit reached!`, 'error');
-             return prevCart;
-          }
-          showFeedback(`Added another "${item.name}"`);
-          return prevCart.map(i => i.id === item.id ? { ...i, cartQuantity: i.cartQuantity + 1 } : i);
-        } else {
-          showFeedback(`Added "${item.name}"`);
-          return [...prevCart, { ...item, cartQuantity: 1 }];
-        }
-      });
-    } else {
+  const handleScan = async (sku) => {
+    if (!currentStore) return;
+    
+    const { data: items, error } = await supabase
+      .from('items')
+      .select('*')
+      .eq('store_id', currentStore.id)
+      .eq('sku', sku);
+
+    if (error || !items || items.length === 0) {
       showFeedback(`SKU "${sku}" not found!`, 'error');
+      return;
     }
+
+    const item = items[0];
+
+    if (item.quantity <= 0) {
+      showFeedback(`Item "${item.name}" is out of stock!`, 'error');
+      return;
+    }
+    
+    setCart(prevCart => {
+      const existing = prevCart.find(i => i.id === item.id);
+      if (existing) {
+        // Check if we have enough stock
+        if (existing.cartQuantity >= item.quantity) {
+           showFeedback(`Cannot add more "${item.name}", stock limit reached!`, 'error');
+           return prevCart;
+        }
+        showFeedback(`Added another "${item.name}"`);
+        return prevCart.map(i => i.id === item.id ? { ...i, cartQuantity: i.cartQuantity + 1 } : i);
+      } else {
+        showFeedback(`Added "${item.name}"`);
+        return [...prevCart, { ...item, cartQuantity: 1 }];
+      }
+    });
   };
 
   const showFeedback = (message, type = 'success') => {
@@ -100,31 +113,44 @@ const Checkout = () => {
 
   const total = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
 
-  const handleCheckout = (printReceipt = false) => {
-    if (cart.length === 0) return;
+  const handleCheckout = async (printReceipt = false) => {
+    if (cart.length === 0 || !currentStore) return;
+    setCheckoutLoading(true);
 
-    // Deduct stock for all items
-    cart.forEach(item => {
-      updateQuantity(item.id, -item.cartQuantity);
-    });
+    try {
+      // Save transaction
+      const transaction = {
+        store_id: currentStore.id,
+        items: cart.map(i => ({ id: i.id, name: i.name, sku: i.sku, price: i.price, quantity: i.cartQuantity })),
+        subtotal: total,
+        tax: 0,
+        total: total
+      };
+      
+      const { error: txError } = await supabase.from('transactions').insert([transaction]);
+      if (txError) throw txError;
 
-    // Save transaction
-    const transaction = {
-      items: cart.map(i => ({ id: i.id, name: i.name, sku: i.sku, price: i.price, quantity: i.cartQuantity })),
-      total: total
-    };
-    saveTransaction(transaction);
+      // Deduct stock for all items
+      await Promise.all(cart.map(async (item) => {
+        const newQuantity = Math.max(0, item.quantity - item.cartQuantity);
+        return supabase.from('items').update({ quantity: newQuantity }).eq('id', item.id);
+      }));
 
-    if (printReceipt) {
-       // Open print dialog
-       setTimeout(() => {
-          window.print();
-       }, 100);
+      if (printReceipt) {
+         // Open print dialog
+         setTimeout(() => {
+            window.print();
+         }, 100);
+      }
+
+      // Clear cart and show success
+      setCart([]);
+      showFeedback('Checkout completed successfully!', 'success');
+    } catch (err) {
+      showFeedback('Checkout failed: ' + err.message, 'error');
+    } finally {
+      setCheckoutLoading(false);
     }
-
-    // Clear cart and show success
-    setCart([]);
-    showFeedback('Checkout completed successfully!', 'success');
   };
 
   return (
@@ -235,20 +261,20 @@ const Checkout = () => {
             <div className="flex-col gap-4">
               <button 
                 onClick={() => handleCheckout(false)} 
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || checkoutLoading}
                 className="btn btn-primary" 
-                style={{ width: '100%', padding: '0.85rem', fontSize: '1.05rem', opacity: cart.length === 0 ? 0.5 : 1, cursor: cart.length === 0 ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
+                style={{ width: '100%', padding: '0.85rem', fontSize: '1.05rem', opacity: (cart.length === 0 || checkoutLoading) ? 0.5 : 1, cursor: (cart.length === 0 || checkoutLoading) ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
               >
-                 <CreditCard size={20} /> Checkout
+                 {checkoutLoading ? <Loader2 className="animate-spin" size={20} /> : <CreditCard size={20} />} Checkout
               </button>
 
               <button 
                 onClick={() => handleCheckout(true)} 
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || checkoutLoading}
                 className="btn btn-secondary" 
-                style={{ width: '100%', padding: '0.85rem', opacity: cart.length === 0 ? 0.5 : 1, cursor: cart.length === 0 ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
+                style={{ width: '100%', padding: '0.85rem', opacity: (cart.length === 0 || checkoutLoading) ? 0.5 : 1, cursor: (cart.length === 0 || checkoutLoading) ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
               >
-                 <Printer size={18} /> Checkout & Print
+                 {checkoutLoading ? <Loader2 className="animate-spin" size={18} /> : <Printer size={18} />} Checkout & Print
               </button>
             </div>
           </div>

@@ -1,21 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { getItems, deleteItem } from '../store';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { Search, Edit, Trash2, ArrowUpDown } from 'lucide-react';
+import { Search, Edit, Trash2, ArrowUpDown, Loader2 } from 'lucide-react';
 
 const InventoryList = () => {
+  const { currentStore, userRole } = useAuth();
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setItems(getItems());
-  }, []);
+    const fetchItems = async () => {
+      if (!currentStore) return;
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .eq('store_id', currentStore.id);
+      
+      if (error) {
+        console.error("Error fetching items:", error);
+      } else if (data) {
+        setItems(data);
+      }
+      setLoading(false);
+    };
 
-  const handleDelete = (id) => {
+    fetchItems();
+  }, [currentStore]);
+
+  const handleDelete = async (id) => {
+    if (userRole === 'cashier') {
+      alert("Cashiers do not have permission to delete items.");
+      return;
+    }
+
     if (window.confirm('Are you sure you want to delete this item?')) {
-      const newItems = deleteItem(id);
-      setItems(newItems);
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .eq('id', id);
+        
+      if (error) {
+        alert(error.message);
+      } else {
+        setItems(items.filter(item => item.id !== id));
+      }
     }
   };
 
@@ -42,6 +74,14 @@ const InventoryList = () => {
     item.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center" style={{ minHeight: '50vh' }}>
+        <Loader2 className="animate-spin text-gradient" size={48} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-col gap-6">
       <div className="flex justify-between items-center mb-4">
@@ -49,7 +89,9 @@ const InventoryList = () => {
           <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Inventory</h1>
           <p>Manage all your stock items.</p>
         </div>
-        <Link to="/add" className="btn btn-primary">Add New Item</Link>
+        {userRole !== 'cashier' && (
+          <Link to="/add" className="btn btn-primary">Add New Item</Link>
+        )}
       </div>
 
       <div className="glass-panel">
@@ -96,7 +138,7 @@ const InventoryList = () => {
                   <td>{item.category}</td>
                   <td>${Number(item.price).toFixed(2)}</td>
                   <td>
-                    <span className={`badge ${item.quantity <= item.reorderLevel ? 'badge-danger' : 'badge-success'}`}>
+                    <span className={`badge ${item.quantity <= item.reorder_level ? 'badge-danger' : 'badge-success'}`}>
                       {item.quantity}
                     </span>
                   </td>
@@ -105,9 +147,11 @@ const InventoryList = () => {
                       <Link to={`/edit/${item.id}`} className="btn btn-secondary" style={{ padding: '0.4rem', borderRadius: '4px' }}>
                         <Edit size={16} />
                       </Link>
-                      <button onClick={() => handleDelete(item.id)} className="btn btn-danger" style={{ padding: '0.4rem', borderRadius: '4px' }}>
-                        <Trash2 size={16} />
-                      </button>
+                      {userRole !== 'cashier' && (
+                        <button onClick={() => handleDelete(item.id)} className="btn btn-danger" style={{ padding: '0.4rem', borderRadius: '4px' }}>
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

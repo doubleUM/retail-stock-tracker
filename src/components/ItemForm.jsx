@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getItems, saveItem } from '../store';
-import { Save, X, Package } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import { Save, X, Package, Loader2 } from 'lucide-react';
 
 const ItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { currentStore } = useAuth();
+  const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     sku: '',
@@ -13,17 +16,26 @@ const ItemForm = () => {
     category: '',
     price: '',
     quantity: '',
-    reorderLevel: ''
+    reorder_level: ''
   });
 
   useEffect(() => {
-    if (id) {
-      const items = getItems();
-      const itemToEdit = items.find(i => i.id === id);
-      if (itemToEdit) {
-        setFormData(itemToEdit);
+    const fetchItem = async () => {
+      if (id) {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (data) {
+          setFormData(data);
+        }
+        setLoading(false);
       }
-    }
+    };
+    fetchItem();
   }, [id]);
 
   const handleChange = (e) => {
@@ -31,14 +43,27 @@ const ItemForm = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    saveItem({
-      ...formData,
+    setLoading(true);
+
+    const itemData = {
+      store_id: currentStore.id,
+      sku: formData.sku,
+      name: formData.name,
+      category: formData.category,
       price: Number(formData.price),
       quantity: Number(formData.quantity),
-      reorderLevel: Number(formData.reorderLevel)
-    });
+      reorder_level: Number(formData.reorder_level)
+    };
+
+    if (id) {
+      await supabase.from('items').update(itemData).eq('id', id);
+    } else {
+      await supabase.from('items').insert([itemData]);
+    }
+    
+    setLoading(false);
     navigate('/inventory');
   };
 
@@ -120,12 +145,12 @@ const ItemForm = () => {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="reorderLevel">Reorder Level</label>
+              <label htmlFor="reorder_level">Reorder Level</label>
               <input 
                 type="number" 
-                id="reorderLevel" 
-                name="reorderLevel" 
-                value={formData.reorderLevel} 
+                id="reorder_level" 
+                name="reorder_level" 
+                value={formData.reorder_level} 
                 onChange={handleChange} 
                 required 
                 min="0"
@@ -134,11 +159,12 @@ const ItemForm = () => {
           </div>
 
           <div className="flex justify-end gap-4" style={{ marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)} disabled={loading}>
               <X size={18} /> Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
-              <Save size={18} /> Save Item
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} 
+              {loading ? 'Saving...' : 'Save Item'}
             </button>
           </div>
         </form>
