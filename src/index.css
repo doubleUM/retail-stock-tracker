@@ -272,6 +272,15 @@ tbody tr:hover {
   animation: fadeIn 0.4s ease forwards;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* Header/Navbar */
 .navbar {
   display: flex;
