@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
@@ -80,10 +81,11 @@ const InventoryList = () => {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center" style={{ minHeight: '50vh' }}>
+    return createPortal(
+      <div className="flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999 }}>
         <Loader2 className="animate-spin text-gradient" size={48} />
-      </div>
+      </div>,
+      document.body
     );
   }
 
