@@ -11,6 +11,7 @@ const Dashboard = () => {
     lowStock: 0,
     totalValue: 0
   });
+  const [lowStockItems, setLowStockItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
