@@ -18,7 +18,7 @@ const Onboarding = () => {
       const { error: createError } = await supabase.rpc('create_store', {
         p_name: storeName
       });
-      
+
       if (createError) throw createError;
 
       // Reload window to trigger AuthContext state update
@@ -51,14 +51,16 @@ const Onboarding = () => {
   };
 
   return (
-    <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 150px)' }}>
-      <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '460px', padding: '2rem', textAlign: 'center' }}>
-        
-        <Store size={36} style={{ margin: '0 auto 1rem auto', color: 'var(--accent-primary)' }} />
-        <h2 style={{ fontSize: '1.375rem', marginBottom: '0.375rem' }}>Get Started</h2>
-        <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-          Create a new store or join an existing one with an invite code.
-        </p>
+    <div className="flex items-center justify-center w-full" style={{ minHeight: 'calc(100vh - 150px)' }}>
+      <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+
+          <Store size={36} style={{ margin: '0 auto 1rem auto', color: 'var(--accent-primary)' }} />
+          <h2 style={{ fontSize: '1.375rem', marginBottom: '0.375rem' }}>Get Started</h2>
+          <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+            Create a new store or join an existing one with an invite code.
+          </p>
+        </div>
 
         {error && (
           <div className="mb-4" style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent-danger-light)', border: '1px solid #fecaca' }}>
@@ -84,7 +86,7 @@ const Onboarding = () => {
               <input type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="My Store" required />
             </div>
             <div className="flex gap-3 mt-2">
-              <button type="button" className="btn btn-secondary" onClick={() => {setMode(null); setError('');}} style={{ flex: 1 }}>Back</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setMode(null); setError(''); }} style={{ flex: 1 }}>Back</button>
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 2 }}>{loading ? 'Creating...' : 'Create Store'}</button>
             </div>
           </form>
@@ -95,7 +97,7 @@ const Onboarding = () => {
               <input type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} placeholder="e.g. A7X9B2" required />
             </div>
             <div className="flex gap-3 mt-2">
-              <button type="button" className="btn btn-secondary" onClick={() => {setMode(null); setError('');}} style={{ flex: 1 }}>Back</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setMode(null); setError(''); }} style={{ flex: 1 }}>Back</button>
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 2 }}>{loading ? 'Joining...' : 'Join Store'}</button>
             </div>
           </form>

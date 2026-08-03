@@ -10,7 +10,7 @@ const Checkout = () => {
   const [scanFeedback, setScanFeedback] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
-  const [lastOrderTotal, setLastOrderTotal] = useState(0);
+  const [lastOrder, setLastOrder] = useState(null);
   
   const barcodeBuffer = useRef('');
   const lastKeyTime = useRef(0);
@@ -155,7 +155,12 @@ const Checkout = () => {
          setTimeout(() => { window.print(); }, 100);
       }
 
-      setLastOrderTotal(total);
+      setLastOrder({
+        total: total,
+        items: [...cart],
+        date: new Date().toLocaleString(),
+        transactionId: transaction.id || Math.random().toString(36).substring(2, 9).toUpperCase()
+      });
       setCart([]);
       setCheckoutSuccess(true);
     } catch (err) {
@@ -186,12 +191,55 @@ const Checkout = () => {
           
           <div style={{ padding: '1.5rem', background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)', marginBottom: '2rem' }}>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Paid</p>
-            <p style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>${lastOrderTotal.toFixed(2)}</p>
+            <p style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>${lastOrder?.total.toFixed(2)}</p>
           </div>
 
-          <button onClick={startNewSale} className="btn btn-primary btn-lg w-full">
-            New Sale
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => window.print()} className="btn btn-secondary w-full" style={{ padding: '0.75rem' }}>
+              <Printer size={16} /> Print Receipt
+            </button>
+            <button onClick={startNewSale} className="btn btn-primary w-full" style={{ padding: '0.75rem' }}>
+              New Sale
+            </button>
+          </div>
+        </div>
+
+        {/* Hidden Printable Receipt */}
+        <div className="print-only">
+          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{currentStore?.name}</h2>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>Receipt for Purchase</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>{lastOrder?.date}</p>
+          </div>
+          
+          <table style={{ width: '100%', marginBottom: '1rem', borderBottom: '1px solid #000' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #000' }}>
+                <th style={{ textAlign: 'left', padding: '0.5rem 0' }}>Item</th>
+                <th style={{ textAlign: 'center', padding: '0.5rem 0' }}>Qty</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0' }}>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lastOrder?.items.map((item, index) => (
+                <tr key={index}>
+                  <td style={{ padding: '0.5rem 0' }}>{item.name}</td>
+                  <td style={{ textAlign: 'center', padding: '0.5rem 0' }}>{item.cartQuantity}</td>
+                  <td style={{ textAlign: 'right', padding: '0.5rem 0' }}>${(item.price * item.cartQuantity).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '2rem' }}>
+            <span>Total</span>
+            <span>${lastOrder?.total.toFixed(2)}</span>
+          </div>
+          
+          <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#666' }}>
+            <p>Thank you for your business!</p>
+            <p>TXN ID: {lastOrder?.transactionId}</p>
+          </div>
         </div>
       </div>
     );

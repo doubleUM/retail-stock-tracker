@@ -41,7 +41,7 @@ const Login = () => {
   };
 
   return (
-    <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 150px)' }}>
+    <div className="flex items-center justify-center w-full" style={{ minHeight: 'calc(100vh - 150px)' }}>
       <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: '1.375rem', marginBottom: '0.375rem' }}>
@@ -82,9 +82,9 @@ const Login = () => {
             />
           </div>
 
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
+          <button
+            type="submit"
+            className="btn btn-primary"
             style={{ width: '100%', padding: '0.625rem', justifyContent: 'center' }}
             disabled={loading}
           >
@@ -97,8 +97,8 @@ const Login = () => {
         </form>
 
         <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={() => { setIsRegistering(!isRegistering); setError(''); }}
             style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.85rem' }}
           >
