@@ -68,15 +68,18 @@ const ItemForm = () => {
   };
 
   return (
-    <div className="flex justify-center">
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', marginTop: '2rem' }}>
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ padding: '10px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '10px', color: 'var(--accent-primary)' }}>
-            <Package size={24} />
-          </div>
-          <h2 style={{ fontSize: '1.25rem' }}>{id ? 'Edit Item' : 'Add New Item'}</h2>
+    <div className="flex-col gap-6" style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <div className="flex items-center gap-4">
+        <button className="btn btn-ghost" onClick={() => navigate(-1)} style={{ padding: '0.5rem' }}>
+          <X size={20} />
+        </button>
+        <div>
+          <h1 className="page-title">{id ? 'Edit Item' : 'Add New Item'}</h1>
+          <p className="page-subtitle">{id ? 'Update product details and stock.' : 'Add a new product to your inventory.'}</p>
         </div>
-        
+      </div>
+
+      <div className="card">
         <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="form-group">
@@ -158,9 +161,9 @@ const ItemForm = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-4" style={{ marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
+          <div className="flex justify-end gap-3" style={{ marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
             <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)} disabled={loading}>
-              <X size={18} /> Cancel
+              Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} 

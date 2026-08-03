@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { ShoppingCart, Trash2, CreditCard, Scan, Plus, Minus, Printer, Loader2 } from 'lucide-react';
+import { ShoppingCart, Trash2, CreditCard, Scan, Plus, Minus, Printer, Loader2, CheckCircle2 } from 'lucide-react';
 
 const Checkout = () => {
   const { currentStore } = useAuth();
@@ -9,106 +9,119 @@ const Checkout = () => {
   const [manualSku, setManualSku] = useState('');
   const [scanFeedback, setScanFeedback] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [lastOrderTotal, setLastOrderTotal] = useState(0);
   
-  // Use ref for barcode buffer so we don't need to re-bind event listener on every character
   const barcodeBuffer = useRef('');
   const lastKeyTime = useRef(0);
+  const skuInputRef = useRef(null);
+
+  // Auto-focus SKU input on load
+  useEffect(() => {
+    if (skuInputRef.current) {
+      skuInputRef.current.focus();
+    }
+  }, [checkoutSuccess]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore if typing in an input field (unless it's the manual SKU input which we handle on form submit)
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        return;
-      }
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       const currentTime = Date.now();
-      
-      // If it's been more than 100ms since the last key, it might be a new scan or manual typing. 
-      // We clear the buffer if it's too slow to be a scanner.
       if (currentTime - lastKeyTime.current > 100) {
         barcodeBuffer.current = '';
       }
-      
       lastKeyTime.current = currentTime;
 
       if (e.key === 'Enter') {
         if (barcodeBuffer.current.length > 0) {
           handleScan(barcodeBuffer.current);
-          barcodeBuffer.current = ''; // clear after processing
+          barcodeBuffer.current = '';
         }
       } else if (e.key.length === 1) {
-        // Only add printable characters to buffer
         barcodeBuffer.current += e.key;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // Empty dependency array because we use functional state updates inside handleScan
+  }, []);
+
+  const showFeedback = (message, type) => {
+    setScanFeedback({ message, type });
+    setTimeout(() => setScanFeedback(null), 3000);
+  };
 
   const handleScan = async (sku) => {
     if (!currentStore) return;
     
-    const { data: items, error } = await supabase
-      .from('items')
-      .select('*')
-      .eq('store_id', currentStore.id)
-      .eq('sku', sku);
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .eq('store_id', currentStore.id)
+        .eq('sku', sku)
+        .single();
 
-    if (error || !items || items.length === 0) {
-      showFeedback(`SKU "${sku}" not found!`, 'error');
-      return;
-    }
-
-    const item = items[0];
-
-    if (item.quantity <= 0) {
-      showFeedback(`Item "${item.name}" is out of stock!`, 'error');
-      return;
-    }
-    
-    setCart(prevCart => {
-      const existing = prevCart.find(i => i.id === item.id);
-      if (existing) {
-        // Check if we have enough stock
-        if (existing.cartQuantity >= item.quantity) {
-           showFeedback(`Cannot add more "${item.name}", stock limit reached!`, 'error');
-           return prevCart;
-        }
-        showFeedback(`Added another "${item.name}"`);
-        return prevCart.map(i => i.id === item.id ? { ...i, cartQuantity: i.cartQuantity + 1 } : i);
-      } else {
-        showFeedback(`Added "${item.name}"`);
-        return [...prevCart, { ...item, cartQuantity: 1 }];
+      if (error || !data) {
+        showFeedback(`Item not found for SKU: ${sku}`, 'error');
+        return;
       }
-    });
-  };
 
-  const showFeedback = (message, type = 'success') => {
-    setScanFeedback({ message, type });
-    setTimeout(() => setScanFeedback(null), 3000);
+      if (data.quantity <= 0) {
+        showFeedback(`Out of stock: ${data.name}`, 'error');
+        return;
+      }
+
+      addToCart(data);
+      showFeedback(`Added: ${data.name}`, 'success');
+      setManualSku('');
+    } catch (err) {
+      showFeedback(`Error finding item: ${sku}`, 'error');
+    }
   };
 
   const handleManualAdd = (e) => {
     e.preventDefault();
     if (manualSku.trim()) {
       handleScan(manualSku.trim());
-      setManualSku('');
     }
   };
 
-  const updateCartItemQuantity = (id, newQty) => {
-    setCart(prevCart => prevCart.map(item => {
-      if (item.id === id) {
-        const qty = Math.max(1, Math.min(newQty, item.quantity));
-        return { ...item, cartQuantity: qty };
+  const addToCart = (item) => {
+    setCart(prev => {
+      const existing = prev.find(i => i.id === item.id);
+      if (existing) {
+        if (existing.cartQuantity >= item.quantity) {
+          showFeedback(`Not enough stock for ${item.name}`, 'error');
+          return prev;
+        }
+        return prev.map(i => i.id === item.id ? { ...i, cartQuantity: i.cartQuantity + 1 } : i);
       }
-      return item;
-    }));
+      return [...prev, { ...item, cartQuantity: 1 }];
+    });
   };
 
   const removeFromCart = (id) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== id));
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const updateCartItemQuantity = (id, newQuantity) => {
+    if (newQuantity < 1) {
+      removeFromCart(id);
+      return;
+    }
+    
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        if (newQuantity > item.quantity) {
+           showFeedback(`Only ${item.quantity} in stock for ${item.name}`, 'error');
+           return item;
+        }
+        return { ...item, cartQuantity: newQuantity };
+      }
+      return item;
+    }));
   };
 
   const total = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
@@ -118,34 +131,33 @@ const Checkout = () => {
     setCheckoutLoading(true);
 
     try {
-      // Save transaction
       const transaction = {
         store_id: currentStore.id,
-        items: cart.map(i => ({ id: i.id, name: i.name, sku: i.sku, price: i.price, quantity: i.cartQuantity })),
-        subtotal: total,
-        tax: 0,
-        total: total
+        total_amount: total,
+        items: cart.map(item => ({
+          id: item.id,
+          sku: item.sku,
+          name: item.name,
+          price: item.price,
+          quantity: item.cartQuantity
+        }))
       };
-      
+
       const { error: txError } = await supabase.from('transactions').insert([transaction]);
       if (txError) throw txError;
 
-      // Deduct stock for all items
       await Promise.all(cart.map(async (item) => {
         const newQuantity = Math.max(0, item.quantity - item.cartQuantity);
         return supabase.from('items').update({ quantity: newQuantity }).eq('id', item.id);
       }));
 
       if (printReceipt) {
-         // Open print dialog
-         setTimeout(() => {
-            window.print();
-         }, 100);
+         setTimeout(() => { window.print(); }, 100);
       }
 
-      // Clear cart and show success
+      setLastOrderTotal(total);
       setCart([]);
-      showFeedback('Checkout completed successfully!', 'success');
+      setCheckoutSuccess(true);
     } catch (err) {
       showFeedback('Checkout failed: ' + err.message, 'error');
     } finally {
@@ -153,83 +165,110 @@ const Checkout = () => {
     }
   };
 
-  return (
-    <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 180px)', overflow: 'hidden' }}>
-      {/* Left Column: Cart & Scanner Input */}
-      <div className="flex-col gap-6" style={{ flex: '1 1 600px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Point of Sale</h1>
-            <p>Scan items to add them to the cart, or enter SKU manually.</p>
+  const startNewSale = () => {
+    setCheckoutSuccess(false);
+    setScanFeedback(null);
+    setManualSku('');
+  };
+
+  // SUCCESS STATE (Receipt)
+  if (checkoutSuccess) {
+    return (
+      <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 120px)' }}>
+        <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '3rem 2rem', textAlign: 'center' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--accent-success-light)', color: 'var(--accent-success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+            <CheckCircle2 size={32} />
           </div>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Checkout Complete</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+            Transaction recorded successfully.
+          </p>
+          
+          <div style={{ padding: '1.5rem', background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)', marginBottom: '2rem' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Paid</p>
+            <p style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>${lastOrderTotal.toFixed(2)}</p>
+          </div>
+
+          <button onClick={startNewSale} className="btn btn-primary btn-lg w-full">
+            New Sale
+          </button>
         </div>
+      </div>
+    );
+  }
+
+  // MAIN POS LAYOUT
+  return (
+    <div className="checkout-layout flex gap-6" style={{ height: 'calc(100vh - 120px)' }}>
+      
+      {/* Left Column: Cart & Scanner Input */}
+      <div className="flex-col gap-4" style={{ flex: '1 1 600px', height: '100%' }}>
+        
+        {/* Prominent SKU Input Bar */}
+        <form onSubmit={handleManualAdd} className="sku-input-bar">
+          <Scan size={24} />
+          <input 
+            ref={skuInputRef}
+            type="text" 
+            value={manualSku}
+            onChange={e => setManualSku(e.target.value)}
+            placeholder="Scan barcode or type SKU and press Enter..." 
+            style={{ width: '100%', padding: '0.25rem 0' }}
+          />
+          <button type="submit" className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>Add</button>
+        </form>
 
         {scanFeedback && (
-          <div className={`glass-panel mb-4 animate-fade-in`} style={{ padding: '1rem', flexShrink: 0, backgroundColor: scanFeedback.type === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', border: `1px solid ${scanFeedback.type === 'error' ? 'var(--accent-danger)' : 'var(--accent-success)'}` }}>
-             <p style={{ color: scanFeedback.type === 'error' ? '#fca5a5' : '#6ee7b7', fontWeight: 600 }}>{scanFeedback.message}</p>
+          <div className={`feedback-bar animate-fade-in ${scanFeedback.type}`}>
+             {scanFeedback.message}
           </div>
         )}
 
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-            <h2 className="flex items-center gap-2" style={{ whiteSpace: 'nowrap', margin: 0 }}><ShoppingCart size={20} /> Current Cart</h2>
-            
-            <form onSubmit={handleManualAdd} className="flex gap-2" style={{ flexGrow: 1, maxWidth: '350px', justifyContent: 'flex-end' }}>
-              <div style={{ position: 'relative', width: '100%' }}>
-                 <Scan style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={16} />
-                 <input 
-                   type="text" 
-                   value={manualSku}
-                   onChange={e => setManualSku(e.target.value)}
-                   placeholder="Manual SKU entry..." 
-                   style={{ paddingLeft: '2.2rem', width: '100%' }}
-                 />
-              </div>
-              <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>Add</button>
-            </form>
+        {/* Cart Container */}
+        <div className="card flex-col" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-inset)' }}>
+            <h2 className="flex items-center gap-2" style={{ fontSize: '0.95rem', margin: 0 }}>
+              <ShoppingCart size={18} /> Cart Items ({cart.length})
+            </h2>
           </div>
 
-          <div className="table-container" style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
             {cart.length > 0 ? (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Price</th>
-                    <th>Qty</th>
-                    <th>Subtotal</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.map(item => (
-                    <tr key={item.id}>
-                      <td>
-                        <div style={{ fontWeight: 500 }}>{item.name}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.sku}</div>
-                      </td>
-                      <td>${Number(item.price).toFixed(2)}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => updateCartItemQuantity(item.id, item.cartQuantity - 1)} className="btn btn-secondary" style={{ padding: '0.25rem' }}><Minus size={14}/></button>
-                          <span style={{ width: '24px', textAlign: 'center' }}>{item.cartQuantity}</span>
-                          <button onClick={() => updateCartItemQuantity(item.id, item.cartQuantity + 1)} className="btn btn-secondary" style={{ padding: '0.25rem' }}><Plus size={14}/></button>
-                        </div>
-                      </td>
-                      <td>${(item.price * item.cartQuantity).toFixed(2)}</td>
-                      <td>
-                        <button onClick={() => removeFromCart(item.id)} className="btn btn-danger" style={{ padding: '0.4rem' }}>
-                          <Trash2 size={16} />
+              <div className="flex-col">
+                {cart.map(item => (
+                  <div key={item.id} className="flex items-center justify-between" style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{item.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{item.sku}</div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center" style={{ background: 'var(--bg-inset)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                        <button onClick={() => updateCartItemQuantity(item.id, item.cartQuantity - 1)} className="btn-ghost" style={{ padding: '0.4rem', borderRight: '1px solid var(--border-color)' }}>
+                          <Minus size={14}/>
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span style={{ width: '40px', textAlign: 'center', fontSize: '0.9rem', fontWeight: 500 }}>{item.cartQuantity}</span>
+                        <button onClick={() => updateCartItemQuantity(item.id, item.cartQuantity + 1)} className="btn-ghost" style={{ padding: '0.4rem', borderLeft: '1px solid var(--border-color)' }}>
+                          <Plus size={14}/>
+                        </button>
+                      </div>
+                      
+                      <div style={{ width: '70px', textAlign: 'right', fontWeight: 600 }}>
+                        ${(item.price * item.cartQuantity).toFixed(2)}
+                      </div>
+                      
+                      <button onClick={() => removeFromCart(item.id)} className="btn-ghost" style={{ color: 'var(--accent-danger)' }}>
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <ShoppingCart size={48} style={{ opacity: 0.2, margin: '0 auto 1rem' }} />
-                <p>Cart is empty. Scan an item to begin.</p>
+              <div className="empty-state" style={{ padding: '4rem 2rem' }}>
+                <Scan size={48} />
+                <h3 className="empty-state-title">Cart is empty</h3>
+                <p className="empty-state-desc">Scan a barcode or enter a SKU to start adding items to the cart.</p>
               </div>
             )}
           </div>
@@ -237,49 +276,51 @@ const Checkout = () => {
       </div>
 
       {/* Right Column: Order Summary */}
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '380px', flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-          <h2 style={{ margin: 0 }}>Order Summary</h2>
+      <div className="checkout-summary card flex-col" style={{ width: '340px', flexShrink: 0, height: '100%' }}>
+        <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-inset)' }}>
+          <h2 style={{ fontSize: '0.95rem', margin: 0 }}>Order Summary</h2>
         </div>
         
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
-          <div className="flex justify-between mb-4" style={{ color: 'var(--text-secondary)' }}>
-            <span>Items ({cart.reduce((s, i) => s + i.cartQuantity, 0)})</span>
+        <div className="flex-col" style={{ padding: '1.5rem', flex: 1, overflowY: 'auto' }}>
+          <div className="flex justify-between mb-3" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            <span>Subtotal ({cart.reduce((s, i) => s + i.cartQuantity, 0)} items)</span>
             <span>${total.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between mb-4" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex justify-between mb-3" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
             <span>Tax (0%)</span>
             <span>$0.00</span>
           </div>
           
           <div style={{ marginTop: 'auto' }}>
-            <div className="flex justify-between mb-6" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-               <span style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>Total</span>
-               <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>${total.toFixed(2)}</span>
+            <div className="flex justify-between items-center mb-6" style={{ borderTop: '2px dashed var(--border-color)', paddingTop: '1.5rem', marginTop: '1rem' }}>
+               <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Total</span>
+               <span style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>${total.toFixed(2)}</span>
             </div>
 
-            <div className="flex-col gap-4">
+            <div className="flex-col gap-3">
               <button 
                 onClick={() => handleCheckout(false)} 
                 disabled={cart.length === 0 || checkoutLoading}
-                className="btn btn-primary" 
-                style={{ width: '100%', padding: '0.85rem', fontSize: '1.05rem', opacity: (cart.length === 0 || checkoutLoading) ? 0.5 : 1, cursor: (cart.length === 0 || checkoutLoading) ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
+                className="btn btn-primary btn-lg w-full" 
+                style={{ opacity: (cart.length === 0 || checkoutLoading) ? 0.6 : 1 }}
               >
-                 {checkoutLoading ? <Loader2 className="animate-spin" size={20} /> : <CreditCard size={20} />} Checkout
+                 {checkoutLoading ? <Loader2 className="animate-spin" size={20} /> : <CreditCard size={20} />} 
+                 {checkoutLoading ? 'Processing...' : 'Charge'}
               </button>
 
               <button 
                 onClick={() => handleCheckout(true)} 
                 disabled={cart.length === 0 || checkoutLoading}
-                className="btn btn-secondary" 
-                style={{ width: '100%', padding: '0.85rem', opacity: (cart.length === 0 || checkoutLoading) ? 0.5 : 1, cursor: (cart.length === 0 || checkoutLoading) ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
+                className="btn btn-secondary w-full" 
+                style={{ padding: '0.75rem', opacity: (cart.length === 0 || checkoutLoading) ? 0.6 : 1 }}
               >
-                 {checkoutLoading ? <Loader2 className="animate-spin" size={18} /> : <Printer size={18} />} Checkout & Print
+                 <Printer size={16} /> Charge & Print Receipt
               </button>
             </div>
           </div>
         </div>
       </div>
+
     </div>
   );
 };

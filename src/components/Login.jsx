@@ -42,35 +42,35 @@ const Login = () => {
 
   return (
     <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 150px)' }}>
-      <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h2 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-            {isRegistering ? 'Create Account' : 'Welcome Back'}
+      <div className="card animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.375rem', marginBottom: '0.375rem' }}>
+            {isRegistering ? 'Create Account' : 'Sign in'}
           </h2>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            {isRegistering ? 'Sign up to manage your retail store' : 'Sign in to access your dashboard'}
+          <p style={{ fontSize: '0.9rem' }}>
+            {isRegistering ? 'Set up your StockTracker account' : 'Welcome back to StockTracker'}
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid var(--accent-danger)' }}>
-            <p style={{ color: '#fca5a5', fontSize: '0.9rem', textAlign: 'center', margin: 0 }}>{error}</p>
+          <div className="mb-4" style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent-danger-light)', border: '1px solid #fecaca' }}>
+            <p style={{ color: 'var(--accent-danger)', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>{error}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex-col gap-4">
-          <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label>Email Address</label>
+          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+            <label>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@store.com"
+              placeholder="you@example.com"
               required
             />
           </div>
 
-          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label>Password</label>
             <input
               type="password"
@@ -85,22 +85,22 @@ const Login = () => {
           <button 
             type="submit" 
             className="btn btn-primary" 
-            style={{ width: '100%', padding: '0.85rem', justifyContent: 'center' }}
+            style={{ width: '100%', padding: '0.625rem', justifyContent: 'center' }}
             disabled={loading}
           >
             {loading ? 'Processing...' : isRegistering ? (
-              <><UserPlus size={18} /> Sign Up</>
+              <><UserPlus size={16} /> Sign Up</>
             ) : (
-              <><LogIn size={18} /> Sign In</>
+              <><LogIn size={16} /> Sign In</>
             )}
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+        <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
           <button 
             type="button" 
             onClick={() => { setIsRegistering(!isRegistering); setError(''); }}
-            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}
+            style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.85rem' }}
           >
             {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>
