@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertTriangle, Package, DollarSign, Loader2, Plus, ShoppingCart, ArrowRight } from 'lucide-react';
@@ -66,11 +65,10 @@ const Dashboard = () => {
   }, [currentStore]);
 
   if (loading) {
-    return createPortal(
-      <div className="flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999 }}>
+    return (
+      <div className="flex items-center justify-center w-full" style={{ minHeight: 'calc(100vh - var(--header-height) - 3rem)' }}>
         <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-primary)' }} />
-      </div>,
-      document.body
+      </div>
     );
   }
 

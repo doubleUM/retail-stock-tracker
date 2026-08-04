@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, X, Package, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Loader2 } from 'lucide-react';
 
 const ItemForm = () => {
   const { id } = useParams();
@@ -69,9 +69,14 @@ const ItemForm = () => {
 
   return (
     <div className="flex-col gap-6" style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div className="flex items-center gap-4">
-        <button className="btn btn-ghost" onClick={() => navigate(-1)} style={{ padding: '0.5rem' }}>
-          <X size={20} />
+      <div className="flex items-center gap-4 mb-2">
+        <button 
+          className="btn btn-secondary" 
+          onClick={() => navigate(-1)} 
+          style={{ padding: '0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', flexShrink: 0 }}
+          title="Go back"
+        >
+          <ArrowLeft size={18} />
         </button>
         <div>
           <h1 className="page-title">{id ? 'Edit Item' : 'Add New Item'}</h1>
