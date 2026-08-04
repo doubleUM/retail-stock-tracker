@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { Package, LayoutDashboard, PlusCircle, ShoppingCart, LogOut, User, Menu, X, Store } from 'lucide-react';
+import { Package, LayoutDashboard, PlusCircle, ShoppingCart, LogOut, User, Menu, X, Store, Sun, Moon } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import InventoryList from './components/InventoryList';
 import ItemForm from './components/ItemForm';
@@ -9,12 +9,14 @@ import Login from './components/Login';
 import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import './App.css';
 
 const AppLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { user, currentStore, userRole, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const getPageTitle = (pathname) => {
     if (pathname === '/') return 'Dashboard';
@@ -74,6 +76,10 @@ const AppLayout = ({ children }) => {
         </nav>
 
         <div className="sidebar-bottom">
+          <button onClick={toggleTheme} className="sidebar-link w-full text-left bg-transparent border-none" style={{ width: '100%', cursor: 'pointer', textAlign: 'left', background: 'none', border: 'none' }}>
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+            {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+          </button>
           <Link to="/profile" className={`sidebar-link ${location.pathname === '/profile' ? 'active' : ''}`} onClick={closeSidebar}>
             <User size={18} />
             Profile
@@ -124,23 +130,25 @@ const ProtectedRoute = ({ children, requireStore = true }) => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppLayout>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/onboarding" element={<ProtectedRoute requireStore={false}><Onboarding /></ProtectedRoute>} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/inventory" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
-            <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-            <Route path="/add" element={<ProtectedRoute><ItemForm /></ProtectedRoute>} />
-            <Route path="/edit/:id" element={<ProtectedRoute><ItemForm /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AppLayout>
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppLayout>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/onboarding" element={<ProtectedRoute requireStore={false}><Onboarding /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/inventory" element={<ProtectedRoute><InventoryList /></ProtectedRoute>} />
+              <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+              <Route path="/add" element={<ProtectedRoute><ItemForm /></ProtectedRoute>} />
+              <Route path="/edit/:id" element={<ProtectedRoute><ItemForm /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AppLayout>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
